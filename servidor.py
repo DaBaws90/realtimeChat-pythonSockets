@@ -1,12 +1,11 @@
 import socket, threading, os
-from datetime import datetime
+from datetime import datetime, date
 
 
 class Cliente(threading.Thread):
     global clientes
     global mutex
     global logFile
-    names = []
 
     def __init__(self, soc, datos, id):
         super().__init__()
@@ -27,69 +26,39 @@ class Cliente(threading.Thread):
             if self.id != c.id:
                 c.socket.send("{} {}".format(self.name, msg).encode())
 
+    def logging(self, msg):
+        with open(logFile, 'a') as file:
+            file.write("{} ({})\n".format(msg, datetime.now().strftime("%X")))
+
     def run(self):
         print("{} connected".format(self))
-        # Abrimos el archivo en modo de lectura y escritura
-        # with open(logFile, 'r+') as file:
-        #     if file.readlines() != "":
-        #         with open(logFile, 'w+') as file:
-        #             file.write("'{}' connected ({})".format(self, datetime.now().strftime("%X")))
-        #     else:
-        #         with open(logFile, 'a+') as file:
-        #             file.write("'{}' connected ({})".format(self, datetime.now().strftime("%X")))
-        mutex.acquire()
-        try:
-            if os.path.isfile(logFile):
-                if os.path.getsize(logFile) == 0:
-                    with open(logFile, 'a+') as file:
-                        file.write("'{}' connected ({})".format(self, datetime.now().strftime("%X")))
-                else:
-                    with open(logFile, 'w+') as file:
-                        file.write("'{}' connected ({})".format(self, datetime.now().strftime("%X")))
+        self.logging("{} connected".format(self))
 
-            else:
-                with open(logFile, 'a+') as file:
-                    file.write("'{}' connected ({})".format(self, datetime.now().strftime("%X")))
-
-        except Exception as E:
-            print("Se produjo un error: {}".format(E))
-        
-
-
-        self.socket.send("You joined the chat room with {} ID\nType 'quit' to leave the room".format(self.id).encode())
-        self.socket.send("Also, write an alias you want to use in chat room".encode())
+        self.socket.send("You joined the chat room with {} ID\nType 'quit' to leave the room\n\
+Also, write an alias you want to use in chat room".format(self.id).encode())
         self.name = self.socket.recv(1024).decode()
+        self.logging("{} is using '{}' alias".format(self, self.name))
         self.socket.send("Welcome, {}".format(self.name).encode())
         self.retransmision("joined the room")
-        # for c in clientes:
-        #     if self.id != c.id:
-        #         c.socket.send("{} joined the room".format(self.name).encode())
+        self.logging("{} joined the room".format(self.name))
         
         while True: 
             incomingMssg = self.socket.recv(1024).decode()
             if incomingMssg.lower() != "quit":
-                with open(logFile, 'a+') as file:
-                    # mutex.acquire()
-                    file.write("Message by {} : '{}' ({})".format(self.name, incomingMssg, datetime.now().strftime("%X")))
-                    file.close()
-
+                self.logging("Message by {} : '{}'".format(self.name, incomingMssg))
                 self.retransmision("wrote: {}".format(incomingMssg))
-                # for c in clientes:
-                #     if self.id != c.id:
-                #         c.socket.send("{} wrote: {}".format(self.name, incomingMssg).encode())
-            else:
-                with open(logFile, 'a+') as file:
-                    file.write("'{}' has disconnected ({})".format(self.name, datetime.now().strftime("%X")))
-                    file.close()
 
+            else:
+                self.logging("{} has disconnected".format(self.name))
                 self.socket.send("You have been successfully disconnected".encode())
+
                 mutex.acquire()
                 for c in clientes[:]:
                     if self.id == c.id:
                         clientes.remove(c)
                     else:
                         pass
-                        # c.socket.send("{} has disconnected".format(self.name).encode())
+                # mutex.release()
 
                 self.retransmision("has disconnected")
                 mutex.release()
@@ -105,6 +74,9 @@ if __name__ == "__main__":
     clientes = []
     cont = 0
     logFile = "C:\\Users\\DaBaws-Laptop\\Desktop\\log.txt"
+    with open(logFile, 'w') as file:
+        file.write("Inicio del log: {} ({})\n\n".format(date.today(), datetime.now().strftime("%X")))
+
     mutex = threading.Lock()
     id = 1
 
